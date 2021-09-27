@@ -7,6 +7,8 @@
 #define W 512
 #define H 512
 
+unsigned char img[W * H * 3];
+
 typedef struct position {
     int x;
     int y;
@@ -27,6 +29,12 @@ typedef struct queue {
     int size;
 }queue;
 
+typedef struct Color {
+    int r;
+    int g;
+    int b;
+}Color;
+
 void push(queue* q, position p) {
     q->queue[q->size] = p;
     q->size += 1;
@@ -43,7 +51,6 @@ int pop(queue* q, line* l) {
     }
 }
 
-unsigned char img[W * H * 3];
 
 
 void draw_line(int start_x, int start_y, int end_x, int end_y) {  
@@ -164,6 +171,17 @@ int main() {
     // 绘制裁减窗口
     draw_frame(start_x, start_y, end_x, end_y);
 
+    for(int i = 0; i < H; i++) {
+        for(int j = 0; j < W; j++) {
+            if(j > start_x && j < end_x && i > start_y && i < end_y) {
+                unsigned char* ptr = img + (W * (H - i - 1) + j) * 3;
+                *ptr++ = (unsigned char)255;
+                *ptr++ = (unsigned char)215;
+                *ptr = (unsigned char)0;
+            }
+        }
+    }
+
     // 绘制被裁剪图形
     int a_x = 200;
     int a_y = 200;
@@ -196,7 +214,7 @@ int main() {
     (*ptr).end.x = b_x;
     (*ptr).end.y = b_y;
 
-    sutherland_hodgman(f, start_x, start_y, end_x, end_y);
+    // sutherland_hodgman(f, start_x, start_y, end_x, end_y);
 
     svpng(fopen("sutherland.png", "wb"), W, H, img, 0);
 }
