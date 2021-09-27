@@ -45,6 +45,7 @@ int pop(queue* q, line* l) {
 
 unsigned char img[W * H * 3];
 
+
 void draw_line(int start_x, int start_y, int end_x, int end_y) {  
     // 由于图片是从最顶点开始算，因此我们需要将指针移到底部
     unsigned char* bottle = img + (W * H * 3);
@@ -110,6 +111,7 @@ void draw_frame(int start_x, int start_y, int end_x, int end_y) {
 
 void sutherland_hodgman(frame f, int start_x, int start_y, int end_x, int end_y) {
     queue q;
+    frame new_f;
     q.size = 0;
     for(int i = 0; i < 4; i++) {
         if(i == 0) {
