@@ -26,7 +26,7 @@ unsigned char* dda(int start_x, int start_y, int end_x, int end_y) {
     int next_x = start_x;
     float next_y = start_y;
     float k = (end_y - start_y)/(end_x - start_x);
-    while(next_x < end_x && next_y < end_y) {
+    while(next_x < end_x) {
         next_x += 1;
         next_y = next_y + k + 0.5;
         int y_pos = (int)next_y;
@@ -48,4 +48,5 @@ int main() {
     int end_y = 400;
     unsigned char* img = dda(start_x, start_y, end_x, end_y);
     svpng(fopen("dda.png", "wb"), W, H, img, 0);
+    return 0;
 }
