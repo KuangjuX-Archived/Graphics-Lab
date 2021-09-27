@@ -53,6 +53,15 @@ int pop(queue* q, position* p) {
     }
 }
 
+int front(queue* q, position* p) {
+    if(q->size) {
+        *p = q->queue[0];
+        return 1;
+    }else {
+        return 0;
+    }
+}
+
 
 
 void draw_line(int start_x, int start_y, int end_x, int end_y) {  
