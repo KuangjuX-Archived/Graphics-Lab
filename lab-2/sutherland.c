@@ -2,6 +2,8 @@
 #include <string.h>
 #include "svpng.h"
 
+#define QUEUE_SIZE 10
+
 #define W 512
 #define H 512
 
@@ -19,6 +21,27 @@ typedef struct frame {
     int sides;
     line* lines;
 }frame;
+
+typedef struct queue {
+    position queue[QUEUE_SIZE];
+    int size;
+}queue;
+
+void push(queue* q, position p) {
+    q->queue[q->size] = p;
+    q->size += 1;
+}
+
+int pop(queue* q, line* l) {
+    if(q->size == 2) {
+        l->start = q->queue[0];
+        l->end = q->queue[1];
+        q->size -= 2;
+        return 1;
+    }else {
+        return 0;
+    }
+}
 
 unsigned char img[W * H * 3];
 
@@ -85,8 +108,49 @@ void draw_frame(int start_x, int start_y, int end_x, int end_y) {
     draw_line(start_x, end_y, end_x, end_y);
 }
 
-void sutherland_hodgman(frame f) {
-
+void sutherland_hodgman(frame f, int start_x, int start_y, int end_x, int end_y) {
+    queue q;
+    q.size = 0;
+    for(int i = 0; i < 4; i++) {
+        if(i == 0) {
+            // 左裁剪
+            for(int j = 0; j < f.sides; j++) {
+                line l = *(f.lines + j);
+                if(l.start.x < start_x && l.end.x < start_x) {
+                    // 从外部到外部，不输出任何值
+                    continue;
+                }else if(l.start.x > start_x && l.end.x > start_x) {
+                    // 从内部到内部，输出第二个点
+                    position point;
+                    point.x = l.end.x;
+                    point.y = l.end.y;
+                    push(&q, point);
+                }else if(l.start.x < start_x && l.end.x > start_x) {
+                    // 从外部到内部，输出交点和第二个点
+                    position point1, point2;
+                    // 计算交点
+                    point1.x = start_x;
+                    point1.y = l.start.x + ((l.end.y - l.start.y) / (l.end.x - l.start.x)) * (start_x - l.start.x);
+                    point2.x = l.end.x;
+                    point2.y = l.end.y;
+                    push(&q, point1);
+                    push(&q, point2);
+                }else if(l.start.x > start_x && l.end.x < start_x) {
+                    // 从内部到外部，输出交点
+                    position point;
+                    point.x = start_x;
+                    point.y = l.end.x + ((l.start.y - l.end.y) / (l.start.x - l.end.x)) * (start_x - l.end.x);
+                    push(&q, point);
+                }
+            }
+        }else if(i == 1) {
+            // 右裁剪
+        }else if(i == 2) {
+            // 下裁剪
+        }else if(i == 3) {
+            // 上裁剪
+        }
+    }
 }
 
 int main() {
@@ -121,8 +185,16 @@ int main() {
     ptr += 1;
     (*ptr).start.x = a_x;
     (*ptr).start.y = a_y;
+    (*ptr).end.x = c_x;
+    (*ptr).end.y = c_y;
+
+    ptr += 1;
+    (*ptr).start.x = c_x;
+    (*ptr).start.y = c_y;
     (*ptr).end.x = b_x;
     (*ptr).end.y = b_y;
+
+    sutherland_hodgman(f, start_x, start_y, end_x, end_y);
 
     svpng(fopen("sutherland.png", "wb"), W, H, img, 0);
 }
