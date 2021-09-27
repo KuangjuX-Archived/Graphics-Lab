@@ -40,11 +40,13 @@ void push(queue* q, position p) {
     q->size += 1;
 }
 
-int pop(queue* q, line* l) {
-    if(q->size == 2) {
-        l->start = q->queue[0];
-        l->end = q->queue[1];
-        q->size -= 2;
+int pop(queue* q, position* p) {
+    if(q->size) {
+        *p = q->queue[0];
+        for(int i = 1; i < q->size; i++) {
+            q->queue[i - 1] = q->queue[i];
+        }
+        q->size--;
         return 1;
     }else {
         return 0;
