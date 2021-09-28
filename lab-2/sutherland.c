@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 #include "svpng.h"
 
 #define QUEUE_SIZE 10
@@ -30,9 +31,9 @@ typedef struct queue {
 }queue;
 
 typedef struct Color {
-    int r;
-    int g;
-    int b;
+    unsigned char r;
+    unsigned char g;
+    unsigned char b;
 }Color;
 
 void push(queue* q, position p) {
@@ -42,7 +43,7 @@ void push(queue* q, position p) {
 
 int pop(queue* q, position* p) {
     if(q->size) {
-        *p = q->queue[0];
+        if(p != NULL) { *p = q->queue[0]; }
         for(int i = 1; i < q->size; i++) {
             q->queue[i - 1] = q->queue[i];
         }
@@ -55,7 +56,7 @@ int pop(queue* q, position* p) {
 
 int front(queue* q, position* p) {
     if(q->size) {
-        *p = q->queue[0];
+        if(p != NULL) { *p = q->queue[0]; }
         return 1;
     }else {
         return 0;
@@ -63,113 +64,159 @@ int front(queue* q, position* p) {
 }
 
 
+int size(queue* q) {
+    return q->size;
+}
 
-void draw_line(int start_x, int start_y, int end_x, int end_y) {  
-    // 由于图片是从最顶点开始算，因此我们需要将指针移到底部
-    unsigned char* bottle = img + (W * H * 3);
-    // 首先给起点和终点加上像素
-    unsigned char* start_ptr = bottle - (start_y * W + (W - start_x)) * 3;
-    *start_ptr++ = (unsigned char)0;
-    *start_ptr++ = (unsigned char)0;
-    *start_ptr++ = (unsigned char)0;
 
-    unsigned char* end_ptr = bottle - (end_y * W + (W - end_x)) * 3;
-    *end_ptr++ = (unsigned char)0;
-    *end_ptr++ = (unsigned char)0;
-    *end_ptr++ = (unsigned char)0;
+void setpixel(int x, int y, Color c) {
+    unsigned char* p = img + (W * (H - y - 1) + x) * 3;;
+    p[0] = c.r;
+    p[1] = c.g;
+    p[2] = c.b;
+}
 
-    int pos_x = start_x;
-    int pos_y = start_y;
-    int prev_pos_y = start_y;
-    int prev_pos_x = start_x;
-    int diff_x = end_x - start_x;
-    int diff_y = end_y - start_y;
-    float k = diff_x == 0 ? 1 << 16: (diff_y / diff_x);
-    int p = 0;
-    // 根据斜率的不同进行绘制
-    if(k >= 1) {
-        p = 2 * diff_x - diff_y;
-        while(pos_y < end_y) {
-            prev_pos_x = pos_x;
-            pos_y += 1;
-            if (p > 0) {
-                pos_x += 1;
-            }
-            p = 2 * diff_x - 2 * diff_y * (pos_x - prev_pos_x);
-            unsigned char* ptr = bottle - (pos_y * W + (W - pos_x)) * 3;
-            *ptr++ = (unsigned char)0;
-            *ptr++ = (unsigned char)0;
-            *ptr = (unsigned char)0;
-        }
-    }else if(k >= 0 && k < 1) {
-        p = 2 * diff_y - diff_x;
-        while(pos_x < end_x) {
-            prev_pos_y = pos_y;
-            pos_x += 1;
-            if (p > 0) {
-                pos_y += 1;
-            }
-            p = 2 * diff_y - 2 * diff_x * (pos_y - prev_pos_y);
-            unsigned char* ptr = bottle - (pos_y * W + (W - pos_x)) * 3;
-            *ptr++ = (unsigned char)0;
-            *ptr++ = (unsigned char)0;
-            *ptr = (unsigned char)0;
-        }
+
+void draw_line(int x0, int y0, int x1, int y1, Color c) {  
+    int dx = abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+    int dy = abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
+    int err = (dx > dy ? dx : -dy) / 2;
+
+    while (setpixel(x0, y0, c), x0 != x1 || y0 != y1) {
+        int e2 = err;
+        if (e2 > -dx) { err -= dy; x0 += sx; }
+        if (e2 <  dy) { err += dx; y0 += sy; }
     }
-    
 }
 
 
-void draw_frame(int start_x, int start_y, int end_x, int end_y) {
-    draw_line(start_x, start_y, end_x, start_y);
-    draw_line(start_x, start_y, start_x, end_y);
-    draw_line(end_x, start_y, end_x, end_y);
-    draw_line(start_x, end_y, end_x, end_y);
+void draw_frame(int start_x, int start_y, int end_x, int end_y, Color c) {
+    draw_line(start_x, start_y, end_x, start_y, c);
+    draw_line(start_x, start_y, start_x, end_y, c);
+    draw_line(end_x, start_y, end_x, end_y, c);
+    draw_line(start_x, end_y, end_x, end_y, c);
 }
 
-void sutherland_hodgman(frame f, int start_x, int start_y, int end_x, int end_y) {
-    queue q;
-    frame new_f;
-    q.size = 0;
+void sutherland_hodgman(queue q, int start_x, int start_y, int end_x, int end_y, Color c) {
     for(int i = 0; i < 4; i++) {
         if(i == 0) {
             // 左裁剪
-            for(int j = 0; j < f.sides; j++) {
-                line l = *(f.lines + j);
-                if(l.start.x < start_x && l.end.x < start_x) {
+            int side_size = size(&q);
+            for(int j = 0; j < side_size; j++) {
+                position p1, p2;
+                if(!pop(&q, &p1)) {
+                    printf("[Error] 队列中无剩余节点.\n");
+                    exit(0);
+                }
+                if(!front(&q, &p2)) {
+                    printf("[Error] 队列中无剩余节点.\n");
+                    exit(0);
+                }
+                if(j == 0) {
+                    // 需要第一个节点push到队尾构造闭合曲线
+                    push(&q, p1);
+                }
+                if(p1.x < start_x && p2.x < start_x) {
                     // 从外部到外部，不输出任何值
                     continue;
-                }else if(l.start.x > start_x && l.end.x > start_x) {
+                }else if(p1.x > start_x && p2.x > start_x) {
                     // 从内部到内部，输出第二个点
-                    position point;
-                    point.x = l.end.x;
-                    point.y = l.end.y;
-                    push(&q, point);
-                }else if(l.start.x < start_x && l.end.x > start_x) {
+                    push(&q, p2);
+                    printf("[Debug] 左裁剪从内部到内部输出节点 (%d, %d)\n", p2.x, p2.y);
+                }else if(p1.x < start_x && p2.x > start_x) {
                     // 从外部到内部，输出交点和第二个点
-                    position point1, point2;
+                    position p;
                     // 计算交点
-                    point1.x = start_x;
-                    point1.y = l.start.x + ((l.end.y - l.start.y) / (l.end.x - l.start.x)) * (start_x - l.start.x);
-                    point2.x = l.end.x;
-                    point2.y = l.end.y;
-                    push(&q, point1);
-                    push(&q, point2);
-                }else if(l.start.x > start_x && l.end.x < start_x) {
+                    float k = (float)(p2.y - p1.y) / (p2.x - p1.x);
+                    p.y = (int)(p1.y + k * (start_x - p1.x) + 0.5f);
+                    p.x = start_x;
+                    push(&q, p);
+                    push(&q, p2);
+                    printf("[Debug] 左裁剪从外部到内部输出节点: (%d, %d), (%d, %d)\n", p.x, p.y, p2.x, p2.y);
+                }else if(p1.x > start_x && p2.x < start_x) {
                     // 从内部到外部，输出交点
-                    position point;
-                    point.x = start_x;
-                    point.y = l.end.x + ((l.start.y - l.end.y) / (l.start.x - l.end.x)) * (start_x - l.end.x);
-                    push(&q, point);
+                    position p;
+                    float k = (float)(p1.y - p2.y) / (p1.x - p2.x);
+                    p.y = (int)(p2.y + k * (start_x - p2.x) + 0.5f);
+                    p.x = start_x;
+                    push(&q, p);
+                    printf("[Debug] 左裁剪从内部到外部输出节点 (%d, %d)\n", p.x, p.y);
+                }else {
+                    printf("[Error] 未解决的情况.\n");
+                    exit(0);
                 }
             }
+            pop(&q, NULL);
         }else if(i == 1) {
             // 右裁剪
+            int side_size = size(&q);
+            for(int j = 0; j < side_size; j++) {
+                // 首先pop出第一个节点，然后取出第二个节点连成一条线
+                position p1, p2;
+                if(!pop(&q, &p1)) {
+                    printf("[Error] 队列中无剩余节点.\n");
+                    exit(0);
+                }
+                if(!front(&q, &p2)) {
+                    printf("[Error] 队列中无剩余节点.\n");
+                    exit(0);
+                }
+                if(j == 0) {
+                    // 需要第一个节点push到队尾构造闭合曲线
+                    push(&q, p1);
+                }
+                printf("[Debug] 右裁剪输入节点: (%d, %d), (%d, %d)\n", p1.x, p1.y, p2.x, p2.y);
+                if(p1.x > end_x && p2.x > end_x) {
+                    // 从外部到外部，不输出任何值
+                    printf("[Debug] 右裁剪从外部到外部无输出\n");
+                    continue;
+                }else if(p1.x < end_x && p2.x < end_x) {
+                    // 从内部到内部，输出第2个值
+                    push(&q, p2);
+                    printf("[Debug] 右裁剪从内部到内部输出节点: (%d, %d)\n", p2.x, p2.y);
+                }else if(p1.x > end_x && p2.x < end_x) {
+                    // 从外部到内部,输出交点和第2个结点
+                    position p;
+                    float k = (float)(p1.y - p2.y) / (p1.x - p2.x);
+                    p.y = (int)(p2.y + k * (end_x - p2.x) + 0.5f);
+                    p.x = end_x;
+                    push(&q, p);
+                    push(&q, p2);
+                    printf("[Debug] 右裁剪从外部到内部输出节点: (%d, %d) (%d, %d)\n", p.x, p.y, p2.x, p2.y);
+                }else if(p1.x < end_x && p2.x > end_x) {
+                    // 从内部到外部，输出交点 
+                    position p;
+                    float k = (float)(p2.y - p1.y) / (p2.x - p1.x);
+                    p.y = (int)(p1.y + k * (end_x - p1.x) + 0.5f);
+                    p.x = end_x;
+                    push(&q, p);
+                    printf("[Debug] 右裁剪从内部到外部输出节点: (%d, %d)\n", p.x, p.y);
+                }else {
+                    printf("[Error] 未解决的情况.\n");
+                    exit(0);
+                }
+            }
+            pop(&q, NULL);
         }else if(i == 2) {
             // 下裁剪
+            continue;
         }else if(i == 3) {
             // 上裁剪
+            continue;
         }
+    }
+
+    int side_size = size(&q);
+    printf("[Debug] side_size: %d\n", side_size);
+    for(int i = 0; i < side_size; i++) {
+        position p1, p2;
+        pop(&q, &p1);
+        front(&q, &p2);
+        if(i == 0) {
+            push(&q, p1);
+        }
+        printf("[Debug] p1: (%d, %d) p2: (%d, %d)\n", p1.x, p1.y, p2.x, p2.y);
+        draw_line(p1.x, p1.y, p2.x, p2.y, c);
     }
 }
 
@@ -180,7 +227,11 @@ int main() {
     int end_x = 300;
     int end_y = 300;
     // 绘制裁减窗口
-    draw_frame(start_x, start_y, end_x, end_y);
+    Color c;
+    c.r = 0;
+    c.g = 0;
+    c.b = 0;
+    draw_frame(start_x, start_y, end_x, end_y, c);
 
     for(int i = 0; i < H; i++) {
         for(int j = 0; j < W; j++) {
@@ -194,38 +245,28 @@ int main() {
     }
 
     // 绘制被裁剪图形
-    int a_x = 200;
-    int a_y = 200;
-    int b_x = 400;
-    int b_y = 300;
-    int c_x = 400;
-    int c_y = 200;
-    draw_line(a_x, a_y, b_x, b_y);
-    draw_line(a_x, a_y, c_x, c_y);
-    draw_line(c_x, c_y, b_x, b_y);
+    position p1, p2, p3;
+    queue q;
+    q.size = 0;
+    p1.x = 200;
+    p1.y = 200;
+    p2.x = 400;
+    p2.y = 300;
+    p3.x = 400;
+    p3.y = 200;
+    push(&q, p1);
+    push(&q, p2);
+    push(&q, p3);
+    printf("[Debug] 输入节点为 (%d, %d) (%d, %d) (%d, %d)\n", p1.x, p1.y, p2.x, p2.y, p3.x, p3.y);
+    draw_line(p1.x, p1.y, p2.x, p2.y, c);
+    draw_line(p2.x, p2.y, p3.x, p3.y, c);
+    draw_line(p3.x, p3.y, p1.x, p1.y, c);
 
-    frame f;
-    f.sides = 3;
-    f.lines = (line*)malloc(sizeof(line) * 3);
-    line* ptr = f.lines;
-    (*ptr).start.x = a_x;
-    (*ptr).start.y = a_y;
-    (*ptr).end.x = b_x;
-    (*ptr).end.y = b_y;
+    c.r = 0;
+    c.g = 139;
+    c.b = 69;
 
-    ptr += 1;
-    (*ptr).start.x = a_x;
-    (*ptr).start.y = a_y;
-    (*ptr).end.x = c_x;
-    (*ptr).end.y = c_y;
-
-    ptr += 1;
-    (*ptr).start.x = c_x;
-    (*ptr).start.y = c_y;
-    (*ptr).end.x = b_x;
-    (*ptr).end.y = b_y;
-
-    // sutherland_hodgman(f, start_x, start_y, end_x, end_y);
+    sutherland_hodgman(q, start_x, start_y, end_x, end_y, c);
 
     svpng(fopen("sutherland.png", "wb"), W, H, img, 0);
 }
