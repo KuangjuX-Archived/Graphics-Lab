@@ -16,4 +16,6 @@ Computer Graphics Lab in TJU.
 ## 使用直线算法生成图像
 - [render.c](render/render.c)   
    
-![](render/african_head.png)
+![](render/african_head.png)   
+   
+![](render/diablo3_pose.png)

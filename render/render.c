@@ -47,7 +47,7 @@ int main() {
     memset(img, 255, sizeof(img));
 
     FILE* fp;
-    fp = fopen("obj/african_head.obj", "r");
+    fp = fopen("obj/diablo3_pose.obj", "r");
     char line[256];
     cvector_vector_type(Vec3f) vert = NULL;
     cvector_vector_type(Vertex) face = NULL;
@@ -57,7 +57,6 @@ int main() {
         if(*p == 'v') {
             Vec3f vec3f;
             sscanf(p, "v %lf %lf %lf", &vec3f.x, &vec3f.y, &vec3f.z);
-            // printf("x1: %lf, x2: %lf, x3: %lf\n", vec3f.x, vec3f.y, vec3f.z);
             cvector_push_back(vert, vec3f);
         }else if(*p == 'f') {
             Vertex v;
@@ -72,7 +71,6 @@ int main() {
             cvector_push_back(face, v);
         }
     }
-    printf("vert size: %ld face size: %ld\n", cvector_size(vert), cvector_size(face));
     for(int i = 0; i < cvector_size(face); i++) {
         Vec3f x, y, z;
         x = vert[face[i].x];
@@ -92,5 +90,5 @@ int main() {
         draw_line(x0, y0, x2, y2);
         draw_line(x1, y1, x2, y2);
     }
-    svpng(fopen("african_head.png", "wb"), W, H, img, 0);
+    svpng(fopen("diablo3_pose.png", "wb"), W, H, img, 0);
 }
