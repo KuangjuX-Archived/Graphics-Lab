@@ -15,12 +15,19 @@
 ## 实验结果
 使用 DDA 算法生成的直线： 
 
-
 ![](dda.png)   
+
+放大后可以看出像素点的排列:
+
+![](dda1.png)
 
 使用 Bresenham 算法生成的直线：  
 
 ![](bresenham.png)
+
+放大后依然可以看到 bresenham 算法生成直线的像素点的排列:
+
+![](bresenham1.png)
 
 使用直线生成算法画的图形:
 
